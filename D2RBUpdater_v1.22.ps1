@@ -1,14 +1,23 @@
-﻿
-$global:destinationPath = $null
-$global:oldDestinationPath = $null
-$global:settingsJsonPath = $null
+
+$button4_Click = {
+    # Download the file from the provided link
+    $global:destinationPath = "C:\Users\Am798\Documents\UpdaterProject\"
+    $webpageUrl = "https://raw.githubusercontent.com/Thrackx/d2rb_updater/main/Link"
+    $webpageContent = Invoke-WebRequest -Uri $webpageUrl -UseBasicParsing
+    $repoUrl = $webpageContent.Content.Trim()
+    $fileName = Split-Path -Path $repoUrl -Leaf
+    $rardestinationPath = Join-Path $destinationPath $fileName
+    Invoke-WebRequest -Uri $repoUrl -OutFile $rardestinationPath
+    $textBox1.AppendText("Latest file downloaded to $rardestinationPath`r`n")
+}
+
 
 $button1_Click = {
     $folderBrowserDialog = New-Object System.Windows.Forms.FolderBrowserDialog
     $folderBrowserDialog.Description = "Select Destination Folder"
     if ($folderBrowserDialog.ShowDialog() -eq 'OK') {
         $global:destinationPath = $folderBrowserDialog.SelectedPath
-        $textBox2.Text = "$destinationPath"
+        $textBox2.Text = "$global:destinationPath"
     }
 }
 
@@ -17,9 +26,10 @@ $button2_Click = {
     $oldfolderBrowserDialog.Description = "Select the old path location of Bot"
     if ($oldfolderBrowserDialog.ShowDialog() -eq 'OK') {
         $global:oldDestinationPath = $oldfolderBrowserDialog.SelectedPath
-		$oldPath = Join-Path -Path "$global:oldDestinationPath" -ChildPath "day"
-        $global:settingsJsonPath = Join-Path -Path "$oldPath" -ChildPath "settings.json"
+		$global:oldPath = Join-Path -Path "$global:oldDestinationPath" -ChildPath "day"
+        $global:settingsJsonPath = Join-Path -Path "$global:oldPath" -ChildPath "settings.json"
         $textBox3.Text = "$global:oldDestinationPath"
+        #$textBox1.AppendText("SettingJson= $global:settingsJsonPath`r`n")
     }
 }
 
@@ -31,30 +41,48 @@ $button3_Click = {
         $textBox1.AppendText("Please select the old install location.`r`n")
     }
     else {
-        # Extract the selected RAR file
-        $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
-        $openFileDialog.Filter = "RAR files (*.rar)|*.rar"
-        $openFileDialog.Title = "Select a RAR file to extract"
-        $dialogResult = $openFileDialog.ShowDialog()
-        if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK) {
-            $rarFilePath = $openFileDialog.FileName
-            $rarFileName = [System.IO.Path]::GetFileNameWithoutExtension($rarFilePath)
+        if ($Checkbox3.Checked) {
+            $rarFilePath = ""
+            # Download the file from the provided link
+            $webpageUrl = "https://raw.githubusercontent.com/Thrackx/d2rb_updater/main/Link"
+            $webpageContent = Invoke-WebRequest -Uri $webpageUrl -UseBasicParsing
+            $repoUrl = $webpageContent.Content.Trim()
+            $fileName = Split-Path -Path $repoUrl -Leaf
+            #$textBox1.AppendText("Rar File Name: $FileName`r`n")
+            $rardestinationPath = Join-Path $destinationPath $fileName
+            $textBox1.AppendText("Rar DestinationPath: $rardestinationPath`r`n")
+            $textBox1.AppendText("Please wait while rar is downloaded.  This takes around 15 seconds depending on connection.`r`n")
+            #$ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -Uri $repoUrl -OutFile $rardestinationPath
+            $textBox1.AppendText("File downloaded completed to $rardestinationPath`r`n")
+            $rarFilePath = $rardestinationPath
+            $global:drarfilename = [System.IO.Path]::GetFileNameWithoutExtension($FileName)
+        }
+               
+        else {
+            # Seclect the RAR to extract
+            $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
+            $openFileDialog.Filter = "RAR files (*.rar)|*.rar"
+            $openFileDialog.Title = "Select a RAR file to extract"
+            $dialogResult = $openFileDialog.ShowDialog()
+            if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK) {
+                $rarFilePath = $openFileDialog.FileName
+                $global:drarfilename = [System.IO.Path]::GetFileNameWithoutExtension($rarFilePath)
+            }
+        }
 
-            if (-not (Test-Path -Path $global:destinationPath)) {
-                New-Item -ItemType Directory -Path $global:destinationPath | Out-Null
-            }
-            $textBox1.AppendText("Extracting RAR file...`r`n")
-            & "C:\Program Files\7-Zip\7z.exe" x "$($openFileDialog.FileName)" "-o`"$global:destinationPath`""
-            $textBox1.AppendText("RAR file extracted to $($global:destinationPath)`r`n")
-            }
-            else {
-			    $textBox1.AppendText("Failed to extract RAR file to ($global:destinationPath)`r`n")
-		    }
+        # Extract the RAR file
+        Extract-RarFile -RarFilePath $rarFilePath -DestinationPath $global:destinationPath -TextBox $textBox1
+  
 
             # Check if settings.json exists in the old path location
             if (Test-Path -Path $global:settingsJsonPath) {
+                #$textBox1.AppendText("$global:settingsJsonPath`r`n")
+                #$textBox1.AppendText("RarFileName: $rarFileName.`r`n")
+                #$textBox1.AppendText("G DestPath: $global:destinationPath.`r`n")
                 # Copy settings.json to the newly extracted location
-                $newPath = Join-Path -Path $destinationPath -ChildPath "$rarFileName\day"
+                $newPath = Join-Path -Path $global:destinationPath -ChildPath "$global:drarFileName\day"
+                #$textBox1.AppendText("New Path: $newPath.`r`n")
                 } else {
                 $textBox1.AppendText("The old path location does not contain a settings.json file.`r`n")
                 }
@@ -69,16 +97,16 @@ $button3_Click = {
 
                 # Replace the BotPath in settings.json with the new destination path
                 $content = Get-Content $newSettingsJsonPath -Raw
-                $content = $content -replace '("BotPath":\s*")[^"]+(")', "`$1$($destinationPath -replace '\\', '\\')\\$rarFileName\\D2RB\\D2RB.exe`$2"
+                $content = $content -replace '("BotPath":\s*")[^"]+(")', "`$1$($global:destinationPath -replace '\\', '\\')\\$global:drarfilename\\D2RB\\D2RB.exe`$2"
                 Set-Content $newSettingsJsonPath -Value $content
                 $textBox1.AppendText("The BotPath in settings.json was updated successfully`r`n" )
 
                 # Get the path of the settings.json file
-                $settingsFilePath = Join-Path -Path $global:oldDestinationPath -ChildPath "Day\settings.json"
+                $global:settingsFilePath = Join-Path -Path $global:oldDestinationPath -ChildPath "Day\settings.json"
                 
 
                 # Check if the settings file exists
-                if (Test-Path -Path $settingsFilePath -PathType Leaf) {
+                if (Test-Path -Path $global:settingsFilePath -PathType Leaf) {
 	                # Read the settings.json file as JSON
 	                $settingsJson = Get-Content -Path $settingsFilePath -Raw | ConvertFrom-Json
 
@@ -88,7 +116,7 @@ $button3_Click = {
 		                foreach ($character in $settingsJson.Bots.CharacterName) {
 			                # Construct the old and new paths for the character-specific folder
 			                $oldCharacterPath = Join-Path -Path $global:oldDestinationPath -ChildPath "D2RB\Settings\$character"
-			                $newCharacterPath = Join-Path -Path $global:destinationPath -ChildPath "$rarFileName\D2RB\Settings\$character"
+			                $newCharacterPath = Join-Path -Path $global:destinationPath -ChildPath "$global:drarfilename\D2RB\Settings\$character"
 
 			                # Check if the old character-specific folder exists
 			                if (Test-Path -Path $oldCharacterPath -PathType Container) {
@@ -99,7 +127,7 @@ $button3_Click = {
 
 				                # Copy the contents of the old character-specific folder to the new one
 				                Copy-Item -Path $oldCharacterPath\* -Destination $newCharacterPath -Recurse -Force
-				                $textBox1.AppendText("Copied $($character) settings folder to new bot folder.`r`n" )
+				                $textBox1.AppendText("Copied character $($character) settings folder to new bot folder.`r`n" )
 			                }
 			                
 		                }
@@ -111,7 +139,7 @@ $button3_Click = {
                 else {
                     $textBox1.AppendText("settings.json not found in old bot folder.`r`n")
                 }
-
+          
                 # Check if checkBox4 is checked
                 if ($checkBox4.Checked) {
                     # Rename the old destination folder
@@ -119,9 +147,8 @@ $button3_Click = {
                         $oldDestinationFolderName = Split-Path -Path $global:oldDestinationPath -Leaf
                         $parentFolder = Split-Path -Path $global:oldDestinationPath -Parent
                         $newOldDestinationPath = Join-Path -Path $parentFolder -ChildPath "Old_$($oldDestinationFolderName)"
-                        $textBox1.AppendText("Renaming Old Bot Folder `r`n")
                         Rename-Item -Path $global:oldDestinationPath -NewName $newOldDestinationPath -Force
-                        $textBox1.AppendText("Old bot folder successfully renamed to Old_$($oldDestinationFolderName)`r`n")
+                        $textBox1.AppendText("Old bot folder successfully renamed to $($newOldDestinationPath)`r`n")
                     }
                     else {
                         $textBox1.AppendText("Failed to update old bot folder name.`r`n")
@@ -130,14 +157,14 @@ $button3_Click = {
                    
                 # Add Registry Keys for Both Exe's to Run as Admin
                 if ($checkBox2.Checked) {
-                    $textBox1.AppendText("Starting update exe process.`r`n")
+                    $textBox1.AppendText("Starting exe update process for D2RB and Day.`r`n")
                     # Set variables to indicate value and key to set
-                    $NewCombinedPath = Join-Path -Path $rarFileName -ChildPath "D2RB\D2RB.exe"
-                    $NewD2RBEXELocation = Join-Path -Path $destinationPath -ChildPath $NewCombinedPath
+                    $NewCombinedPath = Join-Path -Path $global:drarFileName -ChildPath "D2RB\D2RB.exe"
+                    $global:NewD2RBEXELocation = Join-Path -Path $destinationPath -ChildPath $NewCombinedPath
                     $NewDayEXELocation = Join-Path -Path $newPath -ChildPath "day.exe"
                     $RegistryPath = 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers'
                     $Name1	=  $NewDayEXELocation
-                    $Name2 = $NewD2RBEXELocation
+                    $Name2 = $global:NewD2RBEXELocation
                     $Value = '~ RUNASADMIN'
 
                     # Create the key if it does not exist
@@ -148,12 +175,13 @@ $button3_Click = {
                         # Now set the value
                         New-ItemProperty -Path $RegistryPath -Name $Name1 -Value $Value -PropertyType String -Force
                         New-ItemProperty -Path $RegistryPath -Name $Name2 -Value $Value -PropertyType String -Force
-                        $textBox1.AppendText("Exe's updated to run as Administrator`r`n")
+                        $textBox1.AppendText("Both exe's successfully updated to run as Administrator`r`n")
                     }
-                }
 
-                # Update the old webhook by prompt user to submit it if checkbox is selected.
+                # Update the old webhook by prompting user to submit it if checkbox is selected.
                 if ($checkBox1.Checked) {
+                    $textBox1.AppendText("Starting Webhook Update.`r`n")
+    
                     # Set variables
                     $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
                     $openFileDialog.Filter = "PS1 files (*.ps1)|*.ps1"
@@ -164,15 +192,46 @@ $button3_Click = {
                         # Get the selected file path
                         $oldScriptPath = $openFileDialog.FileName
 
-                        # Update the old webhook script
-                        $oldScriptContent = Get-Content $oldScriptPath
-                        $oldScriptContent = $oldScriptContent -replace '(?ms)(Monitor-Folder\s*-\s*path\s*")(.+?)(")', "`$1$NewD2RBEXELocation`$3"
-                        Set-Content $oldScriptPath $oldScriptContent
-                        $textBox1.AppendText("Webhook Updated Successfully`r`n")
-                    }
-                }
-            }
+                        $global:NewD2RBEXELocation = "$global:drarFileName\D2RB"
 
+                        # Update the old webhook script
+                        try {
+                            $oldScriptContent = Get-Content $oldScriptPath
+                            $oldScriptContent = $oldScriptContent -replace '(?ms)^(Monitor-Folder\s+-path\s+")[^"]*(")', "`$1$global:destinationPath\$global:drarFileName\D2RB`$2"
+                            Set-Content $oldScriptPath $oldScriptContent
+                            $textBox1.AppendText("Webhook Updated Successfully`r`n")
+                        }
+                        catch {
+                            $textBox1.AppendText("Failed to update webhook.`r`n")
+                            $textBox1.AppendText($_.Exception.Message)
+                        }
+                    }
+}
+        }
+}
+
+
+function Extract-RarFile {
+    param (
+        [string]$RarFilePath,
+        [string]$DestinationPath,
+        [System.Windows.Forms.TextBox]$TextBox
+    )
+
+    if (-not (Test-Path -Path $DestinationPath)) {
+        New-Item -ItemType Directory -Path $DestinationPath | Out-Null
+    }
+
+    $TextBox.AppendText("Extracting RAR file...`r`n")
+    & "C:\Program Files\7-Zip\7z.exe" x "$RarFilePath" "-o`"$DestinationPath`""
+
+    if (Test-Path -Path "$DestinationPath\$($rarFileName)") {
+        $TextBox.AppendText("RAR file extracted to $DestinationPath`r`n")
+    }
+    else {
+        $TextBox.AppendText("Failed to extract RAR file to $DestinationPath`r`n")
+    }
+}
 
 
 [void][System.Reflection.Assembly]::Load('System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a')
@@ -193,6 +252,8 @@ $MainForm = New-Object -TypeName System.Windows.Forms.Form
 [System.Windows.Forms.CheckBox]$checkBox7 = $null
 [System.Windows.Forms.TextBox]$textBox2 = $null
 [System.Windows.Forms.TextBox]$textBox3 = $null
+[System.Windows.Forms.TextBox]$textBox4 = $null
+[System.Windows.Forms.Label]$label2 = $null
 [System.Windows.Forms.TextBox]$textBox1 = $null
 function InitializeComponent
 {
@@ -212,6 +273,8 @@ $checkBox6 = (New-Object -TypeName System.Windows.Forms.CheckBox)
 $checkBox7 = (New-Object -TypeName System.Windows.Forms.CheckBox)
 $textBox2 = (New-Object -TypeName System.Windows.Forms.TextBox)
 $textBox3 = (New-Object -TypeName System.Windows.Forms.TextBox)
+$textBox4 = (New-Object -TypeName System.Windows.Forms.TextBox)
+$label2 = (New-Object -TypeName System.Windows.Forms.Label)
 $MainForm.SuspendLayout()
 #
 #label1
@@ -245,7 +308,7 @@ $button2.add_Click($button2_Click)
 #
 #button3
 #
-$button3.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]197,[System.Int32]483))
+$button3.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]198,[System.Int32]449))
 $button3.Name = [System.String]'button3'
 $button3.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]135,[System.Int32]42))
 $button3.TabIndex = [System.Int32]4
@@ -256,16 +319,16 @@ $button3.add_Click($button3_Click)
 #label4
 #
 $label4.AutoSize = $true
-$label4.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]37,[System.Int32]267))
+$label4.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]37,[System.Int32]259))
 $label4.Name = [System.String]'label4'
-$label4.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]81,[System.Int32]13))
+$label4.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]157,[System.Int32]13))
 $label4.TabIndex = [System.Int32]6
-$label4.Text = [System.String]'Optional Tasks:'
+$label4.Text = [System.String]'Optional Tasks Avalable Below:'
 #
 #checkBox1
 #
 $checkBox1.AutoSize = $true
-$checkBox1.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]55,[System.Int32]293))
+$checkBox1.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]40,[System.Int32]289))
 $checkBox1.Name = [System.String]'checkBox1'
 $checkBox1.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]111,[System.Int32]17))
 $checkBox1.TabIndex = [System.Int32]7
@@ -276,7 +339,7 @@ $checkBox1.add_CheckedChanged($checkBox1_CheckedChanged)
 #checkBox2
 #
 $checkBox2.AutoSize = $true
-$checkBox2.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]55,[System.Int32]325))
+$checkBox2.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]325,[System.Int32]289))
 $checkBox2.Name = [System.String]'checkBox2'
 $checkBox2.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]194,[System.Int32]17))
 $checkBox2.TabIndex = [System.Int32]8
@@ -287,37 +350,37 @@ $checkBox2.add_CheckedChanged($checkBox2_CheckedChanged)
 #checkBox3
 #
 $checkBox3.AutoSize = $true
-$checkBox3.Enabled = $false
-$checkBox3.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]55,[System.Int32]357))
+$checkBox3.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]76,[System.Int32]329))
 $checkBox3.Name = [System.String]'checkBox3'
-$checkBox3.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]396,[System.Int32]17))
+$checkBox3.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]389,[System.Int32]17))
 $checkBox3.TabIndex = [System.Int32]9
-$checkBox3.Text = [System.String]'Download Latest Update (If not seclected you will be prompted to provide one)'
+$checkBox3.Text = [System.String]'Auto Download Update (If not seclected you will be prompted to provide one)'
 $checkBox3.UseVisualStyleBackColor = $true
+$checkBox3.add_CheckStateChanged($checkBox3_CheckStateChanged)
 #
 #label5
 #
-$label5.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]66,[System.Int32]419))
+$label5.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]55,[System.Int32]524))
 $label5.Name = [System.String]'label5'
-$label5.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]406,[System.Int32]50))
+$label5.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]417,[System.Int32]36))
 $label5.TabIndex = [System.Int32]10
 $label5.Text = [System.String]'Clicking update only works if the Destination and Old Location options display the correct paths.  Update will start the process based on your additional selected options.
 '
 #
 #textBox1
 #
-$textBox1.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]55,[System.Int32]563))
+$textBox1.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]40,[System.Int32]563))
 $textBox1.Multiline = $true
 $textBox1.Name = [System.String]'textBox1'
 $textBox1.ReadOnly = $true
 $textBox1.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
-$textBox1.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]417,[System.Int32]175))
+$textBox1.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]467,[System.Int32]175))
 $textBox1.TabIndex = [System.Int32]11
 #
 #checkBox4
 #
 $checkBox4.AutoSize = $true
-$checkBox4.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]55,[System.Int32]390))
+$checkBox4.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]157,[System.Int32]289))
 $checkBox4.Name = [System.String]'checkBox4'
 $checkBox4.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]162,[System.Int32]17))
 $checkBox4.TabIndex = [System.Int32]12
@@ -369,7 +432,7 @@ $checkBox7.UseVisualStyleBackColor = $true
 $textBox2.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]204,[System.Int32]68))
 $textBox2.Multiline = $true
 $textBox2.Name = [System.String]'textBox2'
-$textBox2.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]268,[System.Int32]42))
+$textBox2.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]303,[System.Int32]42))
 $textBox2.TabIndex = [System.Int32]16
 #
 #textBox3
@@ -377,12 +440,33 @@ $textBox2.TabIndex = [System.Int32]16
 $textBox3.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]204,[System.Int32]148))
 $textBox3.Multiline = $true
 $textBox3.Name = [System.String]'textBox3'
-$textBox3.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]268,[System.Int32]42))
+$textBox3.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]303,[System.Int32]42))
 $textBox3.TabIndex = [System.Int32]17
+#
+#textBox4
+#
+$textBox4.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]157,[System.Int32]361))
+$textBox4.Multiline = $true
+$textBox4.Name = [System.String]'textBox4'
+$textBox4.ReadOnly = $true
+$textBox4.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]208,[System.Int32]19))
+$textBox4.TabIndex = [System.Int32]18
+#
+#label2
+#
+$label2.Location = (New-Object -TypeName System.Drawing.Point -ArgumentList @([System.Int32]75,[System.Int32]392))
+$label2.Name = [System.String]'label2'
+$label2.Size = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]397,[System.Int32]44))
+$label2.TabIndex = [System.Int32]19
+$label2.Text = [System.String]'The auto download option only works if I have updated the link.  Please validate the version shown in the box above matches the latest one in discord.  Do not run check the box if it is not.'
+$label2.TextAlign = [System.Drawing.ContentAlignment]::TopCenter
+$label2.add_Click($label2_Click)
 #
 #MainForm
 #
-$MainForm.ClientSize = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]534,[System.Int32]761))
+$MainForm.ClientSize = (New-Object -TypeName System.Drawing.Size -ArgumentList @([System.Int32]545,[System.Int32]761))
+$MainForm.Controls.Add($label2)
+$MainForm.Controls.Add($textBox4)
 $MainForm.Controls.Add($textBox3)
 $MainForm.Controls.Add($textBox2)
 $MainForm.Controls.Add($checkBox7)
@@ -400,7 +484,7 @@ $MainForm.Controls.Add($button2)
 $MainForm.Controls.Add($button1)
 $MainForm.Controls.Add($label1)
 $MainForm.Name = [System.String]'MainForm'
-$MainForm.Text = [System.String]'D2RB Updater Written By Thrack v1.22'
+$MainForm.Text = [System.String]'D2RB Updater Written By Thrack v1.24'
 $MainForm.ResumeLayout($false)
 $MainForm.PerformLayout()
 Add-Member -InputObject $MainForm -Name label1 -Value $label1 -MemberType NoteProperty
@@ -418,6 +502,8 @@ Add-Member -InputObject $MainForm -Name checkBox6 -Value $checkBox6 -MemberType 
 Add-Member -InputObject $MainForm -Name checkBox7 -Value $checkBox7 -MemberType NoteProperty
 Add-Member -InputObject $MainForm -Name textBox2 -Value $textBox2 -MemberType NoteProperty
 Add-Member -InputObject $MainForm -Name textBox3 -Value $textBox3 -MemberType NoteProperty
+Add-Member -InputObject $MainForm -Name textBox4 -Value $textBox4 -MemberType NoteProperty
+Add-Member -InputObject $MainForm -Name label2 -Value $label2 -MemberType NoteProperty
 Add-Member -InputObject $MainForm -Name textBox1 -Value $textBox1 -MemberType NoteProperty
 }
 . InitializeComponent
