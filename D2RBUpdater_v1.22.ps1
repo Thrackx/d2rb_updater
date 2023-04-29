@@ -1,3 +1,5 @@
+#This script is not fully functional and should not be used as this time.
+
 
 $button4_Click = {
     # Download the file from the provided link
