@@ -1,6 +1,7 @@
 # D2RB Updater
 # Written by Thrack
 
+# What it does: Updates the path for the bot within the settings.json
 
 # Instructions:
 # Update the two variables below based on where your previous bot folder is and where the new bot folder is.
